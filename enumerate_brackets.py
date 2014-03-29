@@ -19,12 +19,16 @@ def get_outcomes(curr_bracket):
   
   return outcomes
 
+# Play a round of the tournament, returning a list of the winners as
+# well as a list of the new games to be played in the next round.
 def play_round(curr_bracket):
   outcomes = get_outcomes(curr_bracket)
   # Collapse the winners to get the next round.
   new_brackets = [ zip(x[0::2], x[1::2]) for x in outcomes ]
   return (outcomes, new_brackets)
 
+# Get all the outcomes for a tournament.
+# Currently hard-coded to play 3 rounds (Elite Eight).
 def get_all_outcomes():
   all_possibles = []
 
@@ -37,6 +41,7 @@ def get_all_outcomes():
 
   return all_possibles
 
+# Given the cached page containing the standings, extract and download all of the individual brackets.
 def extract_and_fetch_yahoo_bracket_urls():
   html = open('data/standings.html').read()
   url_re = re.compile('(?is)<a class="Fz-xss" href ="/quickenloansbracket/(\d+)">([^<]+)')
@@ -45,6 +50,7 @@ def extract_and_fetch_yahoo_bracket_urls():
     filename = re.sub('\W+', '_', match[1])
     os.popen('wget -O data/bracket_%s "%s"' % (filename, url))
 
+# Given a single bracket file, extract the current point total and the picks for the Elite Eight.
 def extract_picks(filename):
   html = open(filename).read()
   points_re = re.compile('(?is)Final Foursquare</div></a>.*?<div class="Fl-end Grid-u">(\d+) pts<')
@@ -54,7 +60,8 @@ def extract_picks(filename):
   pick_map = dict(picks)
   return [int(points), pick_map['1_1'], pick_map['2_1'], pick_map['3_1'], pick_map['4_1'],
           pick_map['0_2'], pick_map['0_3'], pick_map['0_1']]
-         
+
+# Given a set of picks and an actual outcome, compute a score (using the Yahoo scoring).
 def score_picks(picks, actual):
   POINTS = [8, 8, 8, 8, 16, 16, 32]
   def score(((pick, actual), points)):
@@ -64,11 +71,12 @@ def score_picks(picks, actual):
   return sum(scores)
   
 
-
 if __name__ == '__main__':
   outcomes = get_all_outcomes()
   files = [ f.strip() for f in os.popen('ls data/bracket_*').readlines() ]
   brackets = [ (file[13:], extract_picks(file)) for file in files ]
+
+  # Keep track of how many winning and in-the-money outcomes each bracket has.
   num_winners = dict.fromkeys([x[0] for x in brackets], 0)
   num_money = dict.fromkeys([x[0] for x in brackets], 0)
 
@@ -77,10 +85,12 @@ if __name__ == '__main__':
                             '1st', '1st Points', '2nd', '2nd Points', '3rd', '3rd Points'])
 
   for outcome in outcomes:
+    # Get the final scoreboard for this outcome.
     scores = [ (name, picks[0] + score_picks(picks[1:], outcome)) for (name, picks) in brackets ]
     ranked = sorted(scores, key=lambda s: s[1], reverse=True)
+
     outcomes_writer.writerow(outcome + list(ranked[0]) + list(ranked[1]) + list(ranked[2]))
-    #print '%s: %s (%d)' % (str(outcome), ranked[0][0], ranked[0][1])
+
     num_winners[ranked[0][0]] += 1
     num_money[ranked[0][0]] += 1
     num_money[ranked[1][0]] += 1
